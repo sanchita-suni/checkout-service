@@ -1,0 +1,12 @@
+{
+  "name": "checkout-service",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A tiny payments/checkout service — the target codebase Rewynd grounds incidents against.",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}
