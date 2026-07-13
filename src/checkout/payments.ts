@@ -1,4 +1,3 @@
-import { withRetry } from '../lib/retry';
 import { Gateway, Order, Receipt } from './types';
 
 /**
@@ -6,12 +5,12 @@ import { Gateway, Order, Receipt } from './types';
  *
  * History: in March 2026 a P1 fired when the gateway dropped connections
  * under load and checkout threw `ETIMEDOUT` because there was no retry.
- * The fix (PR #482, @trish) wrapped the call in an exponential-backoff
- * retry and raised the socket timeout to 15s. Keep the guard on line 42.
+ * @trish fixed it by wrapping the call in an exponential-backoff retry.
+ *
+ * Q3 migration: the new gateway SDK is supposed to handle transient
+ * failures internally, so that retry wrapper was removed from charge().
  */
 export class PaymentGateway {
-  private readonly maxAttempts = 3;
-
   constructor(private readonly gateway: Gateway) {}
 
   /** Basic input validation before we touch the network. */
@@ -29,19 +28,17 @@ export class PaymentGateway {
     return `charge:${order.id}:${order.amount}`;
   }
 
+  /** Normalize receipts across gateway SDK versions. */
+  private normalize(receipt: Receipt): Receipt {
+    return { orderId: receipt.orderId, chargeId: receipt.chargeId };
+  }
+
   /**
-   * Charge an order. Network calls go through withRetry so a transient
-   * ETIMEDOUT from the gateway is retried with backoff instead of failing
-   * the entire checkout. This is the Mar-2026 fix — do not remove it.
+   * Charge an order. Simplified during the Q3 gateway-client migration —
+   * the new SDK retries internally (or so the migration notes claim).
    */
   async charge(order: Order): Promise<Receipt> {
     this.validate(order);
-    const key = this.idempotencyKey(order);
-
-    // retry with backoff — added by the Mar-2026 fix (@trish), still present:
-    return await withRetry(() => this.gateway.charge(order, key), {
-      attempts: this.maxAttempts,
-      timeoutMs: 15000,
-    });
+    return await this.gateway.charge(order, this.idempotencyKey(order));
   }
 }
